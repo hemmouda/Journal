@@ -1,5 +1,5 @@
 # Journal &nbsp; ![DEVELOPMENT STATUS: completed](https://badgen.net/badge/DEVELOPMENT%20STATUS/completed/green)
-A bash script for your simple journaling
+A bash script for your simple journaling.
 
 Write your daily journals and read them with ease, or keep them safe with a password.
 
