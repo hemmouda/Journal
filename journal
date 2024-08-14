@@ -1,0 +1,374 @@
+#!/bin/bash
+
+# A bash script for your simple journaling.
+
+# Journals are stored either as plain files or
+# "locked" files in a `.journal` dir in your
+# home dir.
+
+# https://github.com/telos-matter/journal
+# 2024_08, HEMMOUDA Aymane
+
+
+################################################################################
+
+# User settings
+
+# Where the journals are stored
+DIR="$HOME/.journal"
+# Used editor
+EDITOR='vim' # If that's not enough, modify the function called open_editor.
+# Whether entries should be locked by default
+LOCK_BY_DEFAULT='true' # 'true' or 'false'
+# The date-time stamp to use in a first entry
+FIRST_ENTRY_FORMAT='+%a %l:%M %p:'
+# The date-time stamp to use in additional entries
+NEW_ENTRY_FORMAT='+%l:%M %p:'
+
+
+################################################################################
+
+# Constants
+
+# File name format
+FILE_FORMAT='+%Y_%m_%d'
+# Temporary dir name. Used inside $DIR
+TMP='tmp'
+# Locked files extension
+LCK_EXT='.zip'
+
+
+################################################################################
+
+# Used / needed functions
+
+# Opens the editor to edit
+# the file given by $1
+open_editor () {
+	"$EDITOR" "$1"
+	# The used editor has to be such
+	# that it blocks the process until
+	# the user finished editing.
+	# So unfortunately you can't use
+	# TextEdit on MacOS for example.
+}
+
+# Shows a short command synopsis
+show_synopsis () {
+	echo 'Usage: journal [ h | l | u | YYYY mm dd ]'
+}
+
+# Shows usage / help
+show_usage () {
+	echo "
+Journal, a bash script for your simple journaling.
+
+
+Usage:
+	journal [ h | l | u | YYYY mm dd ]
+
+	Simply run \`journal\` with no arguments to write a journal for today. Some settings can be modified inside the script, like wether or not to lock the journals by default, what editor to use, and some other stuff.
+
+
+Options:
+	h, -h, --help   	show this help message.
+	l, -l           	create a journal that will be locked.
+	u, -u           	create a journal that will remain unlocked.
+	YYYY mm dd      	read the journal written on the YYYY mm dd.	
+
+
+Examples:
+    journal            		write a journal for today or add an entry.
+    journal l          		write and lock today's new journal.
+    journal 1970 01 01   	read the journal from January, first, 1970.
+
+
+https://github.com/telos-matter/journal
+" | less
+}
+
+# Initializes what needs to be initialized
+init () {
+	# Make sure DIR and TMP exist
+	if [ ! -d "$DIR/$TMP" ]
+	then
+		mkdir -p "$DIR/$TMP"
+	fi
+}
+
+# Lets the user add
+# the first entry to $1
+first_entry () {
+	# Get the first entry stamp
+	STAMP=`date "$FIRST_ENTRY_FORMAT"`
+	# Write it
+	echo -n -e "$STAMP\n\t" > "$1"
+	# Let the user journal
+	open_editor $1
+}
+
+# Lets the user add a new
+# entry to $1
+new_entry () {
+	# Get the new entry stamp
+	STAMP=`date "$NEW_ENTRY_FORMAT"`
+	# Append it
+	echo -n -e "\n$STAMP\n\t" >> "$1"
+	# Let the user add the entry
+	open_editor $1
+}
+
+# Unlocks $1 into the dir
+# $2, using the password $3.
+# Returns a success code
+unlock () {
+	unzip -q -P "$3" "$1" -d "$2"
+	return $?
+}
+
+# Same as unlock, but removes
+# the locked file ($1) afterwards
+# regardless of the success code
+unlock_rm () {
+	unlock $@
+	SUCCESS_CODE=$?
+	rm $1
+	return $SUCCESS_CODE
+}
+
+# Locks $1 into $2
+# using the password $3
+lock () {
+	zip -q -e -j "$2" "$1" -P "$3"
+}
+
+# Same as lock, but removes
+# the unlocked file ($1) afterwards
+lock_rm () {
+	lock $@
+	rm $1
+}
+
+# Checks if $1
+# exists in $DIR. Locked or not.
+# Returns 0 for true and 1 for false.
+journal_exists () {
+	if [ -f "$DIR/$1" ] || [ -f "$DIR/$1$LCK_EXT" ]
+	then
+		return 0
+	else
+		return 1
+	fi
+}
+
+# Copies the locked journal $1
+# into TMP and tries to unlock it.
+# Returns 0 if all went well 
+# and removes the junk in all cases.
+# $1 is the simple name of
+# the journal, without LCK_EXT.
+unlock_in_tmp () {
+	# Make sure it exists
+	if [ -f "$DIR/$1$LCK_EXT" ]
+	then
+		# First copy it
+		cp "$DIR/$1$LCK_EXT" "$DIR/$TMP/"
+		# Prompt for password
+		echo "Password for $1?"
+		read -s PASSWORD
+		# Try to unlock
+		unlock_rm "$DIR/$TMP/$1$LCK_EXT" "$DIR/$TMP/" "$PASSWORD"
+		# If unlocked successfully
+		if [ $? -eq 0 ]
+		then
+			# Return 0
+			return 0
+		# Otherwise if unable to unlock
+		else
+			# Show appropriate message
+			echo 'Incorrect password.'
+			# And return 1
+			return 1
+		fi
+	
+	# If it does not exist
+	else
+		echo 'ASSERTION ERROR: Unreachable' >&2
+		exit 1
+	fi
+}
+
+# Let the user journal
+# for the first time today.
+# $1 specifies whether to lock
+# the journal or keep it unlocked
+new_journal () {
+	# First get file name. Which is today's date formatted
+	FILE=`date "$FILE_FORMAT"`
+	
+	# Make sure it doesn't already exist
+	journal_exists $FILE
+	if [ $? -eq 0 ]
+	then
+		# It does exist
+		echo "ERROR: Today's journal already exists. Use the command with no arguments to add a new entry." >&2
+		exit 1
+	fi
+	
+	# It doesn't exist, let the user journal
+	first_entry "$DIR/$FILE"
+	# Once finished journaling, check if
+	# it should be locked
+	if eval "$1"
+	then
+		# If so, then prompt for password to use
+		while true
+		do
+			echo "Password to lock $FILE with?"
+			read -s PASSWORD
+			echo "Confirm password:"
+			read -s PASSWORD_CONFIRMATION
+			if [ "$PASSWORD" = "$PASSWORD_CONFIRMATION" ]
+			then
+				break
+			fi
+			echo "The two passwords don't match. Please try again."
+		done
+		
+		# Then lock
+		lock_rm "$DIR/$FILE" "$DIR/$FILE$LCK_EXT" "$PASSWORD"
+	fi
+}
+
+# Either journal for the first
+# time today, or add a new entry
+journal_today () {
+	# First get file name. Which is today's date formatted
+	FILE=`date "$FILE_FORMAT"`
+	
+	# Check if there already is an entry for today that is unlocked
+	if [ -f "$DIR/$FILE" ]
+	then
+		# If so, let the user add a new entry
+		new_entry "$DIR/$FILE"
+	
+	# If not, check if it exists but locked
+	elif [ -f "$DIR/$FILE$LCK_EXT" ]
+	then
+		# If so, unlock in TMP
+		unlock_in_tmp $FILE
+		# If unlocked successfully
+		if [ $? -eq 0 ]
+		then
+			# Let the user add a new entry
+			new_entry "$DIR/$TMP/$FILE"
+			# Lock back again when done
+			lock_rm "$DIR/$TMP/$FILE" "$DIR/$FILE$LCK_EXT" "$PASSWORD"
+		fi
+	
+	# Otherwise, this is the first entry
+	else
+		new_journal "$LOCK_BY_DEFAULT"
+	fi
+}
+
+# Lets the user read the journal
+# written on the $1 $2 $3. (YYYY, MM, DD)
+read_journal () {
+	
+	# Lets the user read $1
+	# without editing it
+	read_without_edit () {
+		less $1
+	}
+	
+	#First format the file name
+	FILE=`date -j -f "%Y %m %d" "$1 $2 $3" "$FILE_FORMAT"` # Not sure if this syntax is valid on Linux
+	# Return if the formatting didn't go well
+	if [ $? -ne 0 ]
+	then
+		return 1
+	fi
+	
+	# Check if the journal is unlocked
+	if [ -f "$DIR/$FILE" ]
+	then
+		# If so, let the user read it
+		read_without_edit "$DIR/$FILE"
+	
+	# If not, check if it's locked
+	elif [ -f "$DIR/$FILE$LCK_EXT" ]
+	then
+		# If so, unlock in TMP
+		unlock_in_tmp $FILE
+		# If unlocked successfully
+		if [ $? -eq 0 ]
+		then
+			# Let the user read it
+			read_without_edit "$DIR/$TMP/$FILE"
+			# Remove when done
+			rm "$DIR/$TMP/$FILE"
+		fi
+	
+	# Otherwise, the journal does not exist
+	else
+		echo "No journal was written on this date $FILE"
+	fi
+}
+
+
+################################################################################
+
+# "Main"
+
+# Initialize
+init
+
+# Call appropriate function depending on the number of args
+# No argument -> journaling today for the first
+# time or adding a new entry
+if [ $# -eq 0 ]
+then
+	journal_today
+
+# One argument -> journaling today for the first
+# time. Overriding LOCK_BY_DEFAULT
+elif [ $# -eq 1 ]
+then
+	# Check if the user wants
+	# to lock the journal
+	if [ "$1" = 'l' ] || [ "$1" = '-l' ]
+	then
+		new_journal 'true'
+	
+	# Or if the user wants to
+	# keep the journal unlocked
+	elif [ "$1" = 'u' ] || [ "$1" = '-u' ]
+	then
+		new_journal 'false'
+	
+	# Could also be asking for help
+	elif [ "$1" = 'h' ] || [ "$1" = '-h' ] || [ "$1" = '--help' ]
+	then
+		show_usage
+	
+	# Otherwise usage error
+	else
+		echo "ERROR: Unrecognized argument: $1" >&2
+		show_synopsis
+		exit 1
+	fi
+
+# Three arguments -> Wants to read a journal
+elif [ $# -eq 3 ]
+then
+	read_journal $@
+
+# Anything else -> Error
+else
+	echo "ERROR: Wrong usage" >&2
+	show_synopsis
+	exit 1
+fi
+
+exit 0
