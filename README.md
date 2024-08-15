@@ -15,7 +15,7 @@ $ journal 1970 01 01
 
 For all the possibilities, run:
 ```console
-$ journal h
+$ journal --help
 ```
 
 ## How-to:
