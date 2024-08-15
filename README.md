@@ -13,10 +13,18 @@ To read a journal, simply specify the date it was written on. Like so for exampl
 $ journal 1970 01 01
 ```
 
+For all the possibilities, run:
+```console
+$ journal h
+```
+
 ## How-to:
 1. Put the [**journal**](journal) script with your other **bin**aries, or in a separate folder, but then don't forget to include that folder to your **PATH** variable (There are plenty of resources out there if you don't know how to do the latter)
 2. Add execution rights to it: ```$ chmod u+x journal```
 3. Rehash to use instantly: ```$ rehash```
+
+## Note:
+Some commands may not work with Linux distros. Only tested on MacOS.
 
 ## ⚠️ &nbsp; Important note:
 Keep in mind that if you lose the password for a journal, that journal is locked forever and cannot be unlocked.
