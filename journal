@@ -32,6 +32,8 @@ NEW_ENTRY_FORMAT='+%l:%M %p:'
 
 # File name format
 FILE_FORMAT='+%Y_%m_%d'
+# Format that the user provides to read a journal. Without the `+`
+READ_JOURNAL_FORMAT="%Y %m %d"
 # Temporary dir name. Used inside $DIR
 TMP='tmp'
 # Locked files extension
@@ -55,7 +57,7 @@ open_editor () {
 
 # Shows a short command synopsis
 show_synopsis () {
-	echo 'Usage: journal [ h | l | u | YYYY mm dd ]'
+	echo 'Usage: journal [ h | l | u | t | y | YYYY mm dd ]'
 }
 
 # Shows usage / help
@@ -65,22 +67,25 @@ Journal, a bash script for your simple journaling.
 
 
 Usage:
-	journal [ h | l | u | YYYY mm dd ]
+	journal [ h | l | u | t | y | YYYY mm dd ]
 
 	Simply run \`journal\` with no arguments to write a journal for today. Some settings can be modified inside the script, like wether or not to lock the journals by default, what editor to use, and some other stuff.
 
 
 Options:
-	h, -h, --help   	show this help message.
-	l, -l           	create a journal that will be locked.
-	u, -u           	create a journal that will remain unlocked.
-	YYYY mm dd      	read the journal written on the YYYY mm dd.	
+	h, -h, --help       	show this help message.
+	l, -l, --locked     	create a journal that will be locked.
+	u, -u, --unlocked   	create a journal that will remain unlocked.
+	t, -t, --today      	read todays' journal.
+	y, -y, --yesterday  	read yesterdays' journal.
+	YYYY mm dd          	read the journal written on the YYYY mm dd.	
 
 
 Examples:
-    journal            		write a journal for today or add an entry.
-    journal l          		write and lock today's new journal.
-    journal 1970 01 01   	read the journal from January, first, 1970.
+	journal             	write a journal for today or add an entry.
+	journal l           	write and lock today's new journal.
+	journal y           	read yesterdays' journal.
+	journal 1970 01 01  	read the journal from January, first, 1970.
 
 
 https://github.com/telos-matter/journal
@@ -264,6 +269,7 @@ journal_today () {
 			new_entry "$DIR/$TMP/$FILE"
 			# Lock back again when done
 			lock_rm "$DIR/$TMP/$FILE" "$DIR/$FILE$LCK_EXT" "$PASSWORD"
+			# The password is set with unlock_in_tmp. I don't know how "okay" that is
 		fi
 	
 	# Otherwise, this is the first entry
@@ -279,11 +285,11 @@ read_journal () {
 	# Lets the user read $1
 	# without editing it
 	read_without_edit () {
-		less $1
+		less $1 # Apparently `less` can transfer you to edit a file with `v`
 	}
 	
 	#First format the file name
-	FILE=`date -j -f "%Y %m %d" "$1 $2 $3" "$FILE_FORMAT"` # Not sure if this syntax is valid on Linux
+	FILE=`date -j -f "$READ_JOURNAL_FORMAT" "$1 $2 $3" "$FILE_FORMAT"` # Not sure if this syntax is valid on Linux
 	# Return if the formatting didn't go well
 	if [ $? -ne 0 ]
 	then
@@ -332,20 +338,31 @@ then
 	journal_today
 
 # One argument -> journaling today for the first
-# time. Overriding LOCK_BY_DEFAULT
+# time, overriding LOCK_BY_DEFAULT.
+# Or reading todays, or yesterdays' journal
 elif [ $# -eq 1 ]
 then
 	# Check if the user wants
 	# to lock the journal
-	if [ "$1" = 'l' ] || [ "$1" = '-l' ]
+	if [ "$1" = 'l' ] || [ "$1" = '-l' ] || [ "$1" = '--locked' ]
 	then
 		new_journal 'true'
 	
 	# Or if the user wants to
 	# keep the journal unlocked
-	elif [ "$1" = 'u' ] || [ "$1" = '-u' ]
+	elif [ "$1" = 'u' ] || [ "$1" = '-u' ] || [ "$1" = '--unlocked' ]
 	then
 		new_journal 'false'
+	
+	# Or read todays journal
+	elif [ "$1" = 't' ] || [ "$1" = '-t' ] || [ "$1" = '--today' ]
+	then
+		read_journal `date "+$READ_JOURNAL_FORMAT"`
+	
+	# Or read yesterdays journal
+	elif [ "$1" = 'y' ] || [ "$1" = '-y' ] || [ "$1" = '--yesterday' ]
+	then
+		read_journal `date -v -1d "+$READ_JOURNAL_FORMAT"` # I also don't think this would work with Linux
 	
 	# Could also be asking for help
 	elif [ "$1" = 'h' ] || [ "$1" = '-h' ] || [ "$1" = '--help' ]
