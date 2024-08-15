@@ -24,7 +24,7 @@ $ journal --help
 3. Rehash to use instantly: ```$ rehash```
 
 ## Note:
-Some commands may not work with Linux distros. Only tested on MacOS.
+Some `date` commands may not work with Linux distros. Only tested on MacOS.
 
 ## ⚠️ &nbsp; Important note:
 Keep in mind that if you lose the password for a journal, that journal is locked forever and cannot be unlocked.
