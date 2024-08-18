@@ -67,7 +67,7 @@ Journal, a bash script for your simple journaling.
 
 
 Usage:
-	journal [ h | l | u | t | y | YYYY mm dd ]
+	journal [ h | l | u | t | y | r | YYYY mm dd ]
 
 	Simply run \`journal\` with no arguments to write a journal for today. Some settings can be modified inside the script, like wether or not to lock the journals by default, what editor to use, and some other stuff.
 
@@ -78,6 +78,7 @@ Options:
 	u, -u, --unlocked   	create a journal that will remain unlocked.
 	t, -t, --today      	read todays' journal.
 	y, -y, --yesterday  	read yesterdays' journal.
+	r, -r, --read       	alias for \`t\`.
 	YYYY mm dd          	read the journal written on the YYYY mm dd.	
 
 
@@ -172,6 +173,9 @@ journal_exists () {
 # and removes the junk in all cases.
 # $1 is the simple name of
 # the journal, without LCK_EXT.
+# The password is stored
+# in the variable PASSWORD, which
+# should be overridden after
 unlock_in_tmp () {
 	# Make sure it exists
 	if [ -f "$DIR/$1$LCK_EXT" ]
@@ -227,6 +231,8 @@ new_journal () {
 	if eval "$1"
 	then
 		# If so, then prompt for password to use
+		local PASSWORD
+		local PASSWORD_CONFIRMATION
 		while true
 		do
 			echo "Password to lock $FILE with?"
@@ -355,7 +361,7 @@ then
 		new_journal 'false'
 	
 	# Or read todays journal
-	elif [ "$1" = 't' ] || [ "$1" = '-t' ] || [ "$1" = '--today' ]
+	elif [ "$1" = 't' ] || [ "$1" = '-t' ] || [ "$1" = '--today' ] || [ "$1" = 'r' ] || [ "$1" = '-r' ] || [ "$1" = '--read' ]
 	then
 		read_journal `date "+$READ_JOURNAL_FORMAT"`
 	
@@ -387,5 +393,11 @@ else
 	show_synopsis
 	exit 1
 fi
+
+# Although the variable are automatically removed
+# when we exit the process, we override the
+# password for extra protection
+PASSWORD=`false`
+PASSWORD_CONFIRMATION=`false`
 
 exit 0
