@@ -57,7 +57,7 @@ open_editor () {
 
 # Shows a short command synopsis
 show_synopsis () {
-	echo 'Usage: journal [ h | l | u | t | y | YYYY mm dd ]'
+	echo 'Usage: journal [ h | l | u | t | y | r | p | YYYY mm dd ]'
 }
 
 # Shows usage / help
@@ -67,7 +67,7 @@ Journal, a bash script for your simple journaling.
 
 
 Usage:
-	journal [ h | l | u | t | y | r | YYYY mm dd ]
+	journal [ h | l | u | t | y | r | p | YYYY mm dd ]
 
 	Simply run \`journal\` with no arguments to write a journal for today. Some settings can be modified inside the script, like wether or not to lock the journals by default, what editor to use, and some other stuff.
 
@@ -79,6 +79,7 @@ Options:
 	t, -t, --today      	read todays' journal.
 	y, -y, --yesterday  	read yesterdays' journal.
 	r, -r, --read       	alias for \`t\`.
+	p, -p, --previous   	read the latest journal that is not todays.
 	YYYY mm dd          	read the journal written on the YYYY mm dd.	
 
 
@@ -285,15 +286,47 @@ journal_today () {
 }
 
 # Lets the user read the journal
-# written on the $1 $2 $3. (YYYY, MM, DD)
+# whose simple name is specified
+# in $1. Handles unlocking and all.
+# The journal must exist
 read_journal () {
-	
+
 	# Lets the user read $1
 	# without editing it
 	read_without_edit () {
 		less $1 # Apparently `less` can transfer you to edit a file with `v`
 	}
+
+	# Check if the journal is unlocked
+	if [ -f "$DIR/$1" ]
+	then
+		# If so, let the user read it
+		read_without_edit "$DIR/$FILE"
 	
+	# If not, check if it's locked
+	elif [ -f "$DIR/$1$LCK_EXT" ]
+	then
+		# If so, unlock in TMP
+		unlock_in_tmp $1
+		# If unlocked successfully
+		if [ $? -eq 0 ]
+		then
+			# Let the user read it
+			read_without_edit "$DIR/$TMP/$1"
+			# Remove when done
+			rm "$DIR/$TMP/$1"
+		fi
+	
+	# Otherwise, the journal does not exist
+	else
+		echo "ASSERTION ERROR: Expected an existing journal, not: $1"
+		exit 2
+	fi
+}
+
+# Lets the user read the journal
+# written on the $1 $2 $3. (YYYY, MM, DD)
+read_journal_date () {
 	#First format the file name
 	FILE=`date -j -f "$READ_JOURNAL_FORMAT" "$1 $2 $3" "$FILE_FORMAT"` # Not sure if this syntax is valid on Linux
 	# Return if the formatting didn't go well
@@ -302,32 +335,50 @@ read_journal () {
 		return 1
 	fi
 	
-	# Check if the journal is unlocked
-	if [ -f "$DIR/$FILE" ]
+	# Check if the journal exists
+	journal_exists $FILE
+	if [ $? -eq 0 ]
 	then
-		# If so, let the user read it
-		read_without_edit "$DIR/$FILE"
-	
-	# If not, check if it's locked
-	elif [ -f "$DIR/$FILE$LCK_EXT" ]
-	then
-		# If so, unlock in TMP
-		unlock_in_tmp $FILE
-		# If unlocked successfully
-		if [ $? -eq 0 ]
-		then
-			# Let the user read it
-			read_without_edit "$DIR/$TMP/$FILE"
-			# Remove when done
-			rm "$DIR/$TMP/$FILE"
-		fi
-	
-	# Otherwise, the journal does not exist
+		# It does exist
+		read_journal $FILE
 	else
-		echo "No journal was written on this date $FILE"
+		# It does not exist
+		echo "No journal was written on this date: $FILE"
+		
 	fi
 }
 
+# Reads the previous / latest journal
+# that is not todays' journal
+read_previous () {
+	# Get todays journal name
+	local TODAY=`date "$FILE_FORMAT"`
+	# Prepare variables depending on whether it exists or not
+	journal_exists $TODAY
+	if [ $? -eq 0 ]
+	then
+		# If today exists, previous, if it exits, must be the 3rd.
+		local N=3
+		# Give error message in case PREVIOUS does not exist
+		local ERROR_MESSAGE="ERROR: There is no journal other than todays' one"
+	else
+		# If today does not exists, previous, if it exists, must be the 2nd.
+		local N=2
+		# Give error message in case previous does not exist
+		local ERROR_MESSAGE="ERROR: You haven't written any journals yet"
+	fi
+	
+	# Check if previous exits
+	if [ `ls | wc -l` -ge $N ]
+	then
+		# List, then sort, then get first N results, then only keep the last, then remove the LCK_EXT if it's locked
+		local PREVIOUS=`ls | sort -r | head -n "$N" | tail -n 1 | sed "s/$LCK_EXT//"`
+		read_journal $PREVIOUS
+	else
+		# If it does not exist
+		echo "$ERROR_MESSAGE"
+	fi
+}
 
 ################################################################################
 
@@ -346,6 +397,7 @@ then
 # One argument -> journaling today for the first
 # time, overriding LOCK_BY_DEFAULT.
 # Or reading todays, or yesterdays' journal
+# Or reading the previous journal
 elif [ $# -eq 1 ]
 then
 	# Check if the user wants
@@ -363,12 +415,16 @@ then
 	# Or read todays journal
 	elif [ "$1" = 't' ] || [ "$1" = '-t' ] || [ "$1" = '--today' ] || [ "$1" = 'r' ] || [ "$1" = '-r' ] || [ "$1" = '--read' ]
 	then
-		read_journal `date "+$READ_JOURNAL_FORMAT"`
+		read_journal_date `date "+$READ_JOURNAL_FORMAT"`
 	
 	# Or read yesterdays journal
 	elif [ "$1" = 'y' ] || [ "$1" = '-y' ] || [ "$1" = '--yesterday' ]
 	then
-		read_journal `date -v -1d "+$READ_JOURNAL_FORMAT"` # I also don't think this would work with Linux
+		read_journal_date `date -v -1d "+$READ_JOURNAL_FORMAT"` # I also don't think this would work with Linux
+	
+	elif [ "$1" = 'p' ] || [ "$1" = '-p' ] || [ "$1" = '--previous' ]
+	then
+		read_previous
 	
 	# Could also be asking for help
 	elif [ "$1" = 'h' ] || [ "$1" = '-h' ] || [ "$1" = '--help' ]
@@ -385,7 +441,7 @@ then
 # Three arguments -> Wants to read a journal
 elif [ $# -eq 3 ]
 then
-	read_journal $@
+	read_journal_date $@
 
 # Anything else -> Error
 else
@@ -398,6 +454,8 @@ fi
 # when we exit the process, we override the
 # password for extra protection
 PASSWORD=`false`
+unset PASSWORD
 PASSWORD_CONFIRMATION=`false`
+unset PASSWORD_CONFIRMATION
 
 exit 0
