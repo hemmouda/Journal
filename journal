@@ -372,7 +372,7 @@ read_previous () {
 	if [ `ls | wc -l` -ge $N ]
 	then
 		# List, then sort, then get first N results, then only keep the last, then remove the LCK_EXT if it's locked
-		local PREVIOUS=`ls | sort -r | head -n "$N" | tail -n 1 | sed "s/$LCK_EXT//"`
+		local PREVIOUS=`ls "$DIR" | sort -r | head -n "$N" | tail -n 1 | sed "s/$LCK_EXT//"`
 		read_journal $PREVIOUS
 	else
 		# If it does not exist
