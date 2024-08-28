@@ -18,6 +18,15 @@ For all the possibilities, run:
 $ journal --help
 ```
 
+## UX snippet:
+### As the user is writing a new entry:
+![writing an entry](writing_an_entry.png)
+
+<hr>
+
+### When the user wants to read a previous journal:
+![reading a previous journal](reading_a_previous_journal.png)
+
 ## How-to:
 1. Put the [**journal**](journal) script with your other **bin**aries, or in a separate folder, but then don't forget to include that folder to your **PATH** variable (There are plenty of resources out there if you don't know how to do the latter)
 2. Add execution rights to it: ```$ chmod u+x journal```
