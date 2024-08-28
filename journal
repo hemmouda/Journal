@@ -57,7 +57,7 @@ open_editor () {
 
 # Shows a short command synopsis
 show_synopsis () {
-	echo 'Usage: journal [ h | l | u | t | y | r | p | YYYY mm dd ]'
+	echo 'Usage: journal [ h | l | u | t | r | y | p ... | YYYY mm dd ]'
 }
 
 # Shows usage / help
@@ -67,7 +67,7 @@ Journal, a bash script for your simple journaling.
 
 
 Usage:
-	journal [ h | l | u | t | y | r | p | YYYY mm dd ]
+	journal [ h | l | u | t | r | y | p ... | YYYY mm dd ]
 
 	Simply run \`journal\` with no arguments to write a journal for today. Some settings can be modified inside the script, like wether or not to lock the journals by default, what editor to use, and some other stuff.
 
@@ -77,16 +77,18 @@ Options:
 	l, -l, --locked     	create a journal that will be locked.
 	u, -u, --unlocked   	create a journal that will remain unlocked.
 	t, -t, --today      	read todays' journal.
-	y, -y, --yesterday  	read yesterdays' journal.
 	r, -r, --read       	alias for \`t\`.
-	p, -p, --previous   	read the latest journal that is not todays.
+	y, -y, --yesterday  	read yesterdays' journal.
+	p ..., -p ...       	read the N-th previous journal.
 	YYYY mm dd          	read the journal written on the YYYY mm dd.	
 
 
 Examples:
 	journal             	write a journal for today or add an entry.
-	journal l           	write and lock today's new journal.
+	journal l           	write and lock today's NEW journal.
 	journal y           	read yesterdays' journal.
+	journal p           	read the journal that was written before today's one.
+	journal -pp          	read the 2nd previous journal that was written before today's one.
 	journal 1970 01 01  	read the journal from January, first, 1970.
 
 
@@ -107,7 +109,7 @@ init () {
 # the first entry to $1
 first_entry () {
 	# Get the first entry stamp
-	STAMP=`date "$FIRST_ENTRY_FORMAT"`
+	local STAMP=`date "$FIRST_ENTRY_FORMAT"`
 	# Write it
 	echo -n -e "$STAMP\n\t" > "$1"
 	# Let the user journal
@@ -118,7 +120,7 @@ first_entry () {
 # entry to $1
 new_entry () {
 	# Get the new entry stamp
-	STAMP=`date "$NEW_ENTRY_FORMAT"`
+	local STAMP=`date "$NEW_ENTRY_FORMAT"`
 	# Append it
 	echo -n -e "\n$STAMP\n\t" >> "$1"
 	# Let the user add the entry
@@ -138,7 +140,7 @@ unlock () {
 # regardless of the success code
 unlock_rm () {
 	unlock $@
-	SUCCESS_CODE=$?
+	local SUCCESS_CODE=$?
 	rm $1
 	return $SUCCESS_CODE
 }
@@ -168,7 +170,18 @@ journal_exists () {
 	fi
 }
 
-# Copies the locked journal $1
+# Checks if todays' journal
+# exists
+today_exists () {
+	# Get todays journal
+	local TODAY=`date "$FILE_FORMAT"`
+	# Check
+	journal_exists "$TODAY"
+	# Return
+	return $?
+}
+
+# Copies the existing locked journal $1
 # into TMP and tries to unlock it.
 # Returns 0 if all went well 
 # and removes the junk in all cases.
@@ -176,7 +189,7 @@ journal_exists () {
 # the journal, without LCK_EXT.
 # The password is stored
 # in the variable PASSWORD, which
-# should be overridden after
+# should be unset after
 unlock_in_tmp () {
 	# Make sure it exists
 	if [ -f "$DIR/$1$LCK_EXT" ]
@@ -214,14 +227,14 @@ unlock_in_tmp () {
 # the journal or keep it unlocked
 new_journal () {
 	# First get file name. Which is today's date formatted
-	FILE=`date "$FILE_FORMAT"`
+	local FILE=`date "$FILE_FORMAT"`
 	
 	# Make sure it doesn't already exist
 	journal_exists $FILE
 	if [ $? -eq 0 ]
 	then
 		# It does exist
-		echo "ERROR: Today's journal already exists. Use the command with no arguments to add a new entry." >&2
+		echo "ERROR: Today's journal has already been written. Use the command with no arguments to add a new entry." >&2
 		exit 1
 	fi
 	
@@ -256,7 +269,7 @@ new_journal () {
 # time today, or add a new entry
 journal_today () {
 	# First get file name. Which is today's date formatted
-	FILE=`date "$FILE_FORMAT"`
+	local FILE=`date "$FILE_FORMAT"`
 	
 	# Check if there already is an entry for today that is unlocked
 	if [ -f "$DIR/$FILE" ]
@@ -328,7 +341,7 @@ read_journal () {
 # written on the $1 $2 $3. (YYYY, MM, DD)
 read_journal_date () {
 	#First format the file name
-	FILE=`date -j -f "$READ_JOURNAL_FORMAT" "$1 $2 $3" "$FILE_FORMAT"` # Not sure if this syntax is valid on Linux
+	local FILE=`date -j -f "$READ_JOURNAL_FORMAT" "$1 $2 $3" "$FILE_FORMAT"` # Not sure if this syntax is valid on Linux
 	# Return if the formatting didn't go well
 	if [ $? -ne 0 ]
 	then
@@ -343,40 +356,49 @@ read_journal_date () {
 		read_journal $FILE
 	else
 		# It does not exist
-		echo "No journal was written on this date: $FILE"
-		
+		local NICE_DATE=`date -j -f "$READ_JOURNAL_FORMAT" "$1 $2 $3" "+%B the %d, %Y"`
+		echo "No journal was written on $NICE_DATE. ($FILE)"
 	fi
 }
 
-# Reads the previous / latest journal
+# Reads the $1-th previous journal
 # that is not todays' journal
 read_previous () {
-	# Get todays journal name
-	local TODAY=`date "$FILE_FORMAT"`
-	# Prepare variables depending on whether it exists or not
-	journal_exists $TODAY
-	if [ $? -eq 0 ]
+	# Get journal count
+	local COUNT=`ls "$DIR" | wc -l`
+	# Check that there is at least something
+	if [ $COUNT -le 1 ]
 	then
-		# If today exists, previous, if it exits, must be the 3rd.
-		local N=3
-		# Give error message in case PREVIOUS does not exist
-		local ERROR_MESSAGE="ERROR: There is no journal other than todays' one"
-	else
-		# If today does not exists, previous, if it exists, must be the 2nd.
-		local N=2
-		# Give error message in case previous does not exist
-		local ERROR_MESSAGE="ERROR: You haven't written any journals yet"
+		echo "ERROR: You haven't written any journals yet"
+		return 1
 	fi
 	
-	# Check if previous exits
-	if [ `ls | wc -l` -ge $N ]
+	# Set N depending on whether today's
+	# journal exists or not
+	today_exists
+	if [ $? -eq 0 ]
 	then
-		# List, then sort, then get first N results, then only keep the last, then remove the LCK_EXT if it's locked
+		# TMP + today
+		N=$(( $1 +2 ))
+		# Error message suffix
+		local ERROR_MESSAGE_SUFFIX=" Including today's journal."
+	else
+		# Just TMP
+		N=$(( $1 +1 ))
+	fi
+	
+	# Check if we have the N-th previous journal
+	if [ $COUNT -ge $N ]
+	then
+		# If so, retrieve it by:
+		# Listing, sorting, getting the first N results, then only keeping the last, then remove the LCK_EXT if it's locked
 		local PREVIOUS=`ls "$DIR" | sort -r | head -n "$N" | tail -n 1 | sed "s/$LCK_EXT//"`
 		read_journal $PREVIOUS
 	else
 		# If it does not exist
-		echo "$ERROR_MESSAGE"
+		# Remove TMP from count
+		COUNT=$(( $COUNT -1 ))
+		echo "ERROR: $1 journals back is too far back. You have only written $COUNT journals.$ERROR_MESSAGE_SUFFIX"
 	fi
 }
 
@@ -422,9 +444,16 @@ then
 	then
 		read_journal_date `date -v -1d "+$READ_JOURNAL_FORMAT"` # I also don't think this would work with Linux
 	
-	elif [ "$1" = 'p' ] || [ "$1" = '-p' ] || [ "$1" = '--previous' ]
+	# Or read a previous journal
+	elif [[ "$1" =~ ^p+$ ]] || [[ "$1" =~ ^\-p+$ ]]
 	then
-		read_previous
+		# Get how many ps are there
+		P_COUNT=${#1}
+		if [[ "$1" =~ ^\- ]]
+		then
+			P_COUNT=$(( $P_COUNT -1 ))
+		fi
+		read_previous $P_COUNT
 	
 	# Could also be asking for help
 	elif [ "$1" = 'h' ] || [ "$1" = '-h' ] || [ "$1" = '--help' ]
