@@ -21,7 +21,7 @@ EDITOR='vim' # If that's not enough, modify the function called open_editor.
 # Whether entries should be locked by default
 LOCK_BY_DEFAULT='true' # 'true' or 'false'
 # The date-time stamp to use in a first entry
-FIRST_ENTRY_FORMAT='+%a %l:%M %p:'
+FIRST_ENTRY_FORMAT='+%d/%m/%y %a %l:%M %p:'
 # The date-time stamp to use in additional entries
 NEW_ENTRY_FORMAT='+%l:%M %p:'
 
@@ -262,6 +262,9 @@ new_journal () {
 		
 		# Then lock
 		lock_rm "$DIR/$FILE" "$DIR/$FILE$LCK_EXT" "$PASSWORD"
+		echo "Journal locked."
+	else
+		echo "Journal saved."
 	fi
 }
 
@@ -276,6 +279,7 @@ journal_today () {
 	then
 		# If so, let the user add a new entry
 		new_entry "$DIR/$FILE"
+		echo 'New entry saved.'
 	
 	# If not, check if it exists but locked
 	elif [ -f "$DIR/$FILE$LCK_EXT" ]
@@ -290,6 +294,7 @@ journal_today () {
 			# Lock back again when done
 			lock_rm "$DIR/$TMP/$FILE" "$DIR/$FILE$LCK_EXT" "$PASSWORD"
 			# The password is set with unlock_in_tmp. I don't know how "okay" that is
+			echo 'New entry saved.'
 		fi
 	
 	# Otherwise, this is the first entry
