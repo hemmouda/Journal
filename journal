@@ -6,7 +6,7 @@
 # "locked" files in a `.journal` dir in your
 # home dir.
 
-# https://github.com/telos-matter/journal
+# https://github.com/hemmouda/journal
 # 2024_08, HEMMOUDA Aymane
 
 
@@ -21,7 +21,7 @@ EDITOR='vim' # If that's not enough, modify the function called open_editor.
 # Whether entries should be locked by default
 LOCK_BY_DEFAULT='true' # 'true' or 'false'
 # The date-time stamp to use in a first entry
-FIRST_ENTRY_FORMAT='+%d/%m/%y %a %l:%M %p:'
+FIRST_ENTRY_FORMAT='+%d/%m/%Y %a %l:%M %p:'
 # The date-time stamp to use in additional entries
 NEW_ENTRY_FORMAT='+%l:%M %p:'
 
@@ -92,7 +92,7 @@ Examples:
 	journal 1970 01 01  	read the journal from January, first, 1970.
 
 
-https://github.com/telos-matter/journal
+https://github.com/hemmouda/journal
 " | less
 }
 
@@ -262,7 +262,7 @@ new_journal () {
 		
 		# Then lock
 		lock_rm "$DIR/$FILE" "$DIR/$FILE$LCK_EXT" "$PASSWORD"
-		echo "Journal locked."
+		echo "Journal saved and locked."
 	else
 		echo "Journal saved."
 	fi
@@ -289,12 +289,14 @@ journal_today () {
 		# If unlocked successfully
 		if [ $? -eq 0 ]
 		then
+			echo 'Journal unlocked.'
 			# Let the user add a new entry
 			new_entry "$DIR/$TMP/$FILE"
+			echo 'New entry saved.'
 			# Lock back again when done
 			lock_rm "$DIR/$TMP/$FILE" "$DIR/$FILE$LCK_EXT" "$PASSWORD"
 			# The password is set with unlock_in_tmp. I don't know how "okay" that is
-			echo 'New entry saved.'
+			echo 'Journal locked.'
 		fi
 	
 	# Otherwise, this is the first entry
@@ -374,7 +376,7 @@ read_previous () {
 	# Check that there is at least something
 	if [ $COUNT -le 1 ]
 	then
-		echo "ERROR: You haven't written any journals yet"
+		echo "ERROR: You haven't written any journals yet!"
 		return 1
 	fi
 	
